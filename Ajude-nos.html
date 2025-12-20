@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A Cúpula - Sistema de Contribuição</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;900&family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* MUDANÇA DE COR DO FUNDO AQUI */
+        body { background-color: #2B2933; font-family: 'Montserrat', 'Inter', sans-serif; color: #e2e8f0; }
+        
+        .font-medieval { font-family: 'Cinzel', serif; }
+        .font-montserrat { font-family: 'Montserrat', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        button:disabled { cursor: not-allowed; opacity: 0.7; }
+        .select-none { user-select: none; }
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+        
+        /* Fundo sutil */
+        .bg-pattern {
+            background-image: url('https://www.transparenttextures.com/patterns/cubes.png');
+            opacity: 0.05;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <div id="shared-header"></div>
+
+    <div id="root" class="flex-grow flex flex-col"></div>
+
+    <div id="shared-footer"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, onSnapshot, orderBy, serverTimestamp, doc, setDoc, getDoc, where, getDocs, deleteDoc, writeBatch, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        window.firebaseApp = initializeApp;
+        window.firebaseAuth = { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile };
+        window.firebaseFirestore = { getFirestore, collection, addDoc, query, onSnapshot, orderBy, serverTimestamp, doc, setDoc, getDoc, where, getDocs, deleteDoc, writeBatch, updateDoc };
+
+        // Inicializa Componentes Compartilhados (Header/Footer)
+        setTimeout(() => {
+            if(window.renderSharedComponents) {
+                window.renderSharedComponents('ajudenos'); 
+            }
+        }, 1000);
+    </script>
+
+    <script src="sistema-cupula.js" type="text/babel"></script>
+
+    <script type="text/babel">
+        // --- CONSTANTES E UTILITÁRIOS ---
+        const waitForFirebase = setInterval(() => {
+            if (window.firebaseApp) {
+                clearInterval(waitForFirebase);
+                iniciarApp();
+            }
+        }, 100);
+
+        const AVATARS = [
+            { id: 'warrior', icon: 'sword', label: 'Guerreiro', color: 'text-red-500' },
+            { id: 'king', icon: 'crown', label: 'Nobre', color: 'text-amber-500' },
+            { id: 'mage', icon: 'gem', label: 'Mago', color: 'text-purple-500' },
+            { id: 'rogue', icon: 'ghost', label: 'Ladino', color: 'text-emerald-500' },
+            { id: 'guard', icon: 'shield', label: 'Guarda', color: 'text-blue-500' },
+        ];
+
+        // Componente Icon Helper
+        const Icon = ({ name, className }) => {
+            const elementRef = React.useRef(null);
+            React.useEffect(() => {
+                if (window.lucide && elementRef.current) {
+                    elementRef.current.innerHTML = '';
+                    const i = document.createElement('i');
+                    i.setAttribute('data-lucide', name);
+                    if (className) i.className = className;
+                    elementRef.current.appendChild(i);
+                    window.lucide.createIcons({ root: elementRef.current });
+                }
+            }, [name, className]);
+            return <span ref={elementRef} style={{ display: 'contents' }}></span>;
+        };
+
+        const MysticClock = () => {
+            const [time, setTime] = React.useState(new Date());
+            React.useEffect(() => {
+                const timer = setInterval(() => setTime(new Date()), 1000);
+                return () => clearInterval(timer);
+            }, []);
+            const dateStr = time.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            const timeStr = time.toLocaleTimeString('pt-PT');
+            return (
+                <div className="flex flex-col items-center justify-center p-4 mb-6 border-b border-white/5 bg-slate-900/30 backdrop-blur-sm rounded-lg">
+                    <div className="text-amber-500/80 font-medieval text-sm uppercase tracking-[0.2em] mb-1">{dateStr}</div>
+                    <div className="text-3xl md:text-4xl font-medieval text-white font-bold tracking-widest drop-shadow-[0_0_10px_rgba(245,158,11,0.3)]">{timeStr}</div>
+                </div>
+            );
+        };
+
+        // 2. Auth Screen Component
+        const AuthScreen = ({ view, setView, handleLogin, handleRegister, isSubmitting, error, formState, setFormState }) => {
+            const updateForm = (field, value) => setFormState(prev => ({ ...prev, [field]: value }));
+            return (
+                <div className="flex-grow flex items-center justify-center p-4 relative min-h-[600px]">
+                    <div className="absolute inset-0 bg-pattern z-0 pointer-events-none"></div>
+                    
+                    <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl relative z-10 animate-fade-in">
+                        <div className="text-center mb-8">
+                            <div className="w-16 h-16 bg-purple-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-purple-500/30">
+                                <Icon name={view === 'login' ? 'lock' : 'user-plus'} className="w-8 h-8 text-purple-500" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-white mb-2">{view === 'login' ? 'Acesso ao Portal' : 'Novo Recruta'}</h2>
+                            <p className="text-slate-400 text-sm">Identifique-se para entrar na Cúpula.</p>
+                        </div>
+
+                        <form onSubmit={view === 'login' ? handleLogin : handleRegister} className="space-y-4">
+                            {view === 'register' && (
+                                <>
+                                    <div className="space-y-1">
+                                        <label className="text-xs text-slate-400 ml-1">Nome de Guerra</label>
+                                        <input required type="text" value={formState.name} onChange={e => updateForm('name', e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-purple-500 transition" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs text-slate-400 ml-1">Data de Nascimento</label>
+                                        <input required type="date" value={formState.birthDate} onChange={e => updateForm('birthDate', e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-purple-500 transition" />
+                                    </div>
+                                </>
+                            )}
+                            
+                            <div className="space-y-1">
+                                <label className="text-xs text-slate-400 ml-1">Email</label>
+                                <input required type="email" value={formState.email} onChange={e => updateForm('email', e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-purple-500 transition" />
+                            </div>
+                            
+                            <div className="space-y-1">
+                                <label className="text-xs text-slate-400 ml-1">Senha</label>
+                                <input required type="password" value={formState.password} onChange={e => updateForm('password', e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-purple-500 transition" />
+                            </div>
+
+                            {view === 'register' && (
+                                <div className="space-y-2 pt-2">
+                                    <label className="text-xs text-slate-400 ml-1">Escolha seu Brasão</label>
+                                    <div className="grid grid-cols-5 gap-2">
+                                        {AVATARS.map(av => (
+                                            <div key={av.id} onClick={() => updateForm('selectedAvatar', av.id)} className={`cursor-pointer p-2 rounded-lg border flex justify-center hover:bg-slate-800 transition ${formState.selectedAvatar === av.id ? 'border-purple-500 bg-purple-500/20' : 'border-slate-700 bg-slate-950'}`}>
+                                                <Icon name={av.icon} className={`w-5 h-5 ${av.color}`} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {error && <div className="p-3 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm text-center flex items-center justify-center gap-2"><Icon name="alert-circle" className="w-4 h-4" /> {error}</div>}
+
+                            <button type="submit" disabled={isSubmitting} className="w-full bg-gradient-to-r from-purple-700 to-indigo-600 hover:from-purple-600 hover:to-indigo-500 disabled:opacity-50 text-white font-bold py-3.5 rounded-lg shadow-lg flex justify-center items-center gap-2 transition transform active:scale-95 mt-4">
+                                {isSubmitting ? 'PROCESSANDO...' : (view === 'login' ? 'ENTRAR NO SISTEMA' : 'CONFIRMAR REGISTRO')} 
+                                {!isSubmitting && <Icon name={view === 'login' ? 'arrow-right' : 'check'} className="w-4 h-4" />}
+                            </button>
+                        </form>
+
+                        <div className="mt-6 pt-6 border-t border-slate-800 text-center">
+                            <p className="text-slate-500 text-sm mb-2">{view === 'login' ? 'Ainda não tem cadastro?' : 'Já possui uma conta?'}</p>
+                            <button className="text-purple-400 hover:text-purple-300 font-bold hover:underline transition" onClick={() => setView(view === 'login' ? 'register' : 'login')}>
+                                {view === 'login' ? 'Criar Nova Conta' : 'Voltar para Login'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // 3. Dashboard Screen (Main System)
+        const DashboardScreen = ({ user, donations, totalCollected, serverGoal, maxHeroes, daysRemaining, nextResetFormatted, handleOpenPixModal, donationAmount, setDonationAmount, error, isAdmin, handleEditDonation, handleDeleteDonation, setView, isHeroesRoomFull, hasDonated, isGoalReached }) => {
+            const progressPercent = Math.min(100, (totalCollected / serverGoal) * 100);
+            const remainingGoal = Math.max(0, serverGoal - totalCollected);
+            const getAvatarInfo = (id) => AVATARS.find(a => a.id === id) || AVATARS[0];
+
+            return (
+                <main className="max-w-6xl mx-auto px-4 py-8 animate-fade-in relative flex-grow w-full">
+                    <div className="absolute inset-0 bg-pattern z-0 pointer-events-none"></div>
+                    
+                    <div className="relative z-10">
+                        <MysticClock />
+
+                        {/* Banner Ciclo */}
+                        <div className="mb-8 p-4 rounded-xl bg-gradient-to-r from-indigo-900/40 to-slate-900 border border-indigo-500/30 flex flex-col md:flex-row items-center justify-between shadow-lg gap-4">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-indigo-500/20 rounded-full border border-indigo-500/30">
+                                    <Icon name="calendar-clock" className="w-6 h-6 text-indigo-400" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-indigo-200 uppercase tracking-wide">Renovação do Ciclo</p>
+                                    <p className="text-xs text-indigo-400">Data prevista: <span className="text-white font-mono">{nextResetFormatted}</span></p>
+                                </div>
+                            </div>
+                            <div className="text-center md:text-right bg-black/20 px-6 py-2 rounded-lg">
+                                <p className="text-xs uppercase tracking-widest text-indigo-400 mb-1">Tempo Restante</p>
+                                <p className="text-2xl font-bold text-white font-mono">{daysRemaining} dias</p>
+                            </div>
+                        </div>
+
+                        <div className="grid lg:grid-cols-12 gap-8">
+                            
+                            {/* COLUNA ESQUERDA: Status e Ação */}
+                            <div className="lg:col-span-7 space-y-6">
+                                
+                                {/* CARD PRINCIPAL: Progresso */}
+                                <div className={`relative overflow-hidden rounded-2xl border p-8 shadow-2xl transition-all ${isGoalReached ? 'bg-emerald-950/30 border-emerald-500/50' : 'bg-slate-900 border-amber-500/30'}`}>
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div>
+                                            <h2 className="text-sm uppercase tracking-widest text-slate-400 font-bold mb-1">Manutenção do Reino</h2>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className={`text-5xl font-black ${isGoalReached ? 'text-emerald-400' : 'text-white'}`}>
+                                                    R$ {totalCollected.toFixed(2)}
+                                                </span>
+                                                <span className="text-slate-500 text-lg">/ {serverGoal}</span>
+                                            </div>
+                                        </div>
+                                        <div className={`p-4 rounded-full ${isGoalReached ? 'bg-emerald-500/20' : 'bg-amber-500/10'}`}>
+                                            <Icon name={isGoalReached ? "check-circle-2" : "coins"} className={`w-10 h-10 ${isGoalReached ? "text-emerald-500" : "text-amber-500"}`} />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="w-full h-6 bg-slate-950 rounded-full overflow-hidden mb-3 border border-white/5 shadow-inner">
+                                        <div className={`h-full transition-all duration-1000 shadow-[0_0_15px_rgba(0,0,0,0.5)] ${isGoalReached ? 'bg-emerald-500' : 'bg-gradient-to-r from-amber-600 via-orange-500 to-amber-400'}`} style={{ width: `${progressPercent}%` }}></div>
+                                    </div>
+                                    
+                                    <div className="flex justify-between text-xs font-mono font-bold">
+                                        <span className={isGoalReached ? 'text-emerald-400' : 'text-amber-400'}>{progressPercent.toFixed(1)}% COMPLETADO</span>
+                                        <span className="text-slate-400">{isGoalReached ? 'META ATINGIDA!' : `FALTAM R$ ${remainingGoal.toFixed(2)}`}</span>
+                                    </div>
+                                </div>
+
+                                {/* CARD SECUNDÁRIO: Ação de Doar */}
+                                {!isGoalReached && !hasDonated && !isHeroesRoomFull && (
+                                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl group-hover:bg-purple-500/10 transition"></div>
+                                        
+                                        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2 relative z-10">
+                                            <Icon name="scroll" className="w-6 h-6 text-purple-400" /> Fazer Oferenda
+                                        </h3>
+                                        
+                                        <div className="space-y-4 relative z-10">
+                                            {/* CONTEÚDO PROTEGIDO */}
+                                            {user ? (
+                                                <>
+                                                    <div>
+                                                        <label className="block text-sm text-slate-400 mb-2 font-medium">Quanto deseja contribuir?</label>
+                                                        <div className="relative">
+                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">R$</span>
+                                                            <input 
+                                                                type="number" 
+                                                                min="2" 
+                                                                max={remainingGoal} 
+                                                                step="0.50" 
+                                                                value={donationAmount} 
+                                                                onChange={(e) => setDonationAmount(e.target.value)} 
+                                                                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 pl-10 text-white focus:border-amber-500 outline-none font-mono text-xl shadow-inner transition" 
+                                                                placeholder="0.00"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 text-xs text-purple-300 flex gap-2 items-start">
+                                                        <Icon name="info" className="w-4 h-4 shrink-0 mt-0.5" />
+                                                        <p>Sua contribuição garante seu nome na Sala dos Heróis. O valor mínimo é de R$ 2,00.</p>
+                                                    </div>
+                                                    
+                                                    {error && <p className="text-red-400 text-sm bg-red-900/20 p-3 rounded-lg border border-red-500/20 flex gap-2 items-center"><Icon name="x-circle" className="w-4 h-4" /> {error}</p>}
+                                                    
+                                                    <button onClick={handleOpenPixModal} className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition transform active:scale-95 border-t border-white/10">
+                                                        <Icon name="qr-code" className="w-5 h-5" /> GERAR PIX
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                /* VISÃO PARA VISITANTES (SEM INPUTS) */
+                                                <div className="text-center py-4 px-2">
+                                                    <p className="text-slate-400 mb-6 text-sm">Identifique-se para acessar a área de oferendas e contribuir com o reino.</p>
+                                                    <button onClick={() => setView('login')} className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition border border-slate-600 group-hover:border-purple-500/50">
+                                                        ENTRAR PARA CONTRIBUIR <Icon name="log-in" className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* STATUS CARDS */}
+                                {hasDonated && (
+                                    <div className="bg-gradient-to-br from-slate-900 to-purple-900/20 border border-purple-500/30 rounded-2xl p-8 text-center shadow-lg">
+                                        <div className="mx-auto bg-purple-500/20 w-16 h-16 rounded-full flex items-center justify-center mb-4 border border-purple-500/30 animate-pulse">
+                                            <Icon name="check" className="w-8 h-8 text-purple-400" />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Oferenda Recebida</h3>
+                                        <p className="text-slate-400">Seu nome já consta nos pergaminhos deste ciclo. Obrigado!</p>
+                                    </div>
+                                )}
+
+                                {isHeroesRoomFull && !hasDonated && !isGoalReached && (
+                                    <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-8 text-center shadow-lg">
+                                        <div className="mx-auto bg-amber-500/10 w-16 h-16 rounded-full flex items-center justify-center mb-4 border border-amber-500/30">
+                                            <Icon name="users" className="w-8 h-8 text-amber-500" />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Sala dos Heróis Lotada</h3>
+                                        <p className="text-slate-400">O limite de {maxHeroes} heróis foi atingido por este ciclo.</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* COLUNA DIREITA: Lista de Doadores */}
+                            <div className="lg:col-span-5">
+                                <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex flex-col h-[600px]">
+                                    <div className="p-5 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center backdrop-blur-sm">
+                                        <h3 className="font-bold text-amber-500 flex items-center gap-2 tracking-wide font-medieval text-lg">
+                                            <Icon name="shield" className="w-5 h-5" /> Sala dos Heróis
+                                        </h3>
+                                        <span className="text-xs font-bold bg-slate-800 text-slate-400 px-2 py-1 rounded border border-slate-700">
+                                            {donations.length} / {maxHeroes}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="p-4 space-y-3 overflow-y-auto custom-scrollbar flex-1 bg-slate-900/50 relative">
+                                        {/* PROTEÇÃO DA LISTA */}
+                                        {!user ? (
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/95 z-20 backdrop-blur-sm p-6 text-center">
+                                                <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4 border border-slate-700 shadow-lg">
+                                                    <Icon name="lock" className="w-8 h-8 text-slate-500" />
+                                                </div>
+                                                <h3 className="text-white font-bold mb-2 text-lg">Pergaminho Protegido</h3>
+                                                <p className="text-slate-400 text-sm mb-6 max-w-[200px]">Apenas membros da Cúpula podem ver quem está na Sala dos Heróis.</p>
+                                                <button onClick={() => setView('login')} className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-bold border border-slate-600 transition flex items-center gap-2">
+                                                    <Icon name="key" className="w-4 h-4" /> Entrar para ver
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            /* LISTA NORMAL PARA LOGADOS */
+                                            donations.length === 0 ? (
+                                                <div className="h-full flex flex-col items-center justify-center text-slate-600 opacity-60">
+                                                    <Icon name="ghost" className="w-12 h-12 mb-3" />
+                                                    <p className="text-sm font-medieval tracking-widest">Nenhum herói se apresentou...</p>
+                                                </div>
+                                            ) : (
+                                                donations.map((d, index) => (
+                                                    <div key={d.id} className="flex items-center gap-4 p-4 rounded-xl bg-slate-950 border border-slate-800 group relative hover:border-slate-600 transition duration-300">
+                                                        <div className="text-xs text-slate-600 font-mono w-4">#{index + 1}</div>
+                                                        <div className={`w-12 h-12 rounded-full bg-slate-900 flex items-center justify-center border-2 ${d.userId === user?.uid ? 'border-purple-500' : 'border-slate-800'}`}>
+                                                            {d.isAnonymous ? 
+                                                                <Icon name="ghost" className="w-6 h-6 text-slate-500" /> : 
+                                                                <Icon name={getAvatarInfo(d.userAvatar).icon} className={`w-6 h-6 ${getAvatarInfo(d.userAvatar).color}`} />
+                                                            }
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <p className={`font-bold text-base ${d.isAnonymous ? 'text-slate-400 italic' : 'text-slate-200'}`}>
+                                                                {d.isAnonymous ? 'Benfeitor Oculto' : d.userName}
+                                                            </p>
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                <span className="text-xs text-emerald-400/80 bg-emerald-950/30 px-1.5 py-0.5 rounded border border-emerald-900">R$ {d.amount.toFixed(2)}</span>
+                                                                {d.userId === user?.uid && <span className="text-[10px] text-purple-400 uppercase tracking-wider font-bold">Você</span>}
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {isAdmin && (
+                                                            <div className="flex gap-1 absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 p-1 rounded-lg border border-slate-700 shadow-xl z-20">
+                                                                <button onClick={() => handleEditDonation(d.id, d.amount)} className="p-1.5 hover:bg-blue-600 text-blue-400 hover:text-white rounded transition" title="Editar"><Icon name="pencil" className="w-4 h-4" /></button>
+                                                                <button onClick={() => handleDeleteDonation(d.id)} className="p-1.5 hover:bg-red-600 text-red-400 hover:text-white rounded transition" title="Apagar"><Icon name="trash-2" className="w-4 h-4" /></button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))
+                                            )
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            );
+        };
+
+        // 4. Main App Container
+        function iniciarApp() {
+            // Configurações e Variáveis Globais
+            const firebaseConfig = {
+                apiKey: "AIzaSyAOZK0kvixerSJSsf0EHob7suL5dBOKdn8",
+                authDomain: "acupula.firebaseapp.com",
+                projectId: "acupula",
+                storageBucket: "acupula.firebasestorage.app",
+                messagingSenderId: "268988769992",
+                appId: "1:268988769992:web:c642eb669566b6230627fd",
+                measurementId: "G-WHBVL0931J"
+            };
+
+            const app = window.firebaseApp(firebaseConfig);
+            const auth = window.firebaseAuth.getAuth(app);
+            const db = window.firebaseFirestore.getFirestore(app);
+            
+            const appId = 'cupula-server-v1'; 
+            const SERVER_GOAL = 76.00;
+            const MAX_HEROES = 16; 
+            const ADMIN_EMAIL = "cupulasmp@gmail.com"; 
+            const VALID_ACCESS_CODES = ["96GD-HWXX-S9VC", "YOJC-6WAJ-94DF", "JPH2-J7BS-MQBC"];
+
+            const { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } = window.firebaseAuth;
+            const { collection, addDoc, query, onSnapshot, orderBy, serverTimestamp, doc, setDoc, getDoc, where, getDocs, deleteDoc, writeBatch, updateDoc } = window.firebaseFirestore;
+
+            function getDynamicCycleDates(referenceDate) {
+                const now = new Date();
+                const ref = new Date(referenceDate);
+                now.setHours(0, 0, 0, 0);
+                ref.setHours(0, 0, 0, 0);
+
+                if (ref > now) {
+                    const diffTime = ref - now;
+                    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    return { lastResetDate: new Date(0), nextResetDate: ref, daysRemaining };
+                }
+
+                const resetDay = ref.getUTCDate(); 
+                let lastResetDate = new Date();
+                let nextResetDate = new Date();
+                if (now.getDate() >= resetDay) {
+                    lastResetDate.setDate(resetDay); lastResetDate.setHours(0, 0, 0, 0);
+                    nextResetDate.setMonth(now.getMonth() + 1); nextResetDate.setDate(resetDay); nextResetDate.setHours(0, 0, 0, 0);
+                } else {
+                    lastResetDate.setMonth(now.getMonth() - 1); lastResetDate.setDate(resetDay); lastResetDate.setHours(0, 0, 0, 0);
+                    nextResetDate.setDate(resetDay); nextResetDate.setHours(0, 0, 0, 0);
+                }
+                const diffTime = nextResetDate - now;
+                const daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24))); 
+                return { lastResetDate, nextResetDate, daysRemaining };
+            }
+
+            function App() {
+                const [accessGranted, setAccessGranted] = React.useState(false);
+                const [accessCodeInput, setAccessCodeInput] = React.useState('');
+                const [user, setUser] = React.useState(null);
+                const [loading, setLoading] = React.useState(true);
+                const [view, setView] = React.useState('home'); // 'home', 'login', 'register', 'success'
+                
+                // Dados do Sistema
+                const [totalCollected, setTotalCollected] = React.useState(0);
+                const [donations, setDonations] = React.useState([]);
+                const [cycleStartDate, setCycleStartDate] = React.useState(new Date()); 
+                
+                // Formulários e Interação
+                const [showPixModal, setShowPixModal] = React.useState(false);
+                const [isSubmitting, setIsSubmitting] = React.useState(false);
+                const [donationAmount, setDonationAmount] = React.useState(2);
+                const [error, setError] = React.useState('');
+                
+                // Form Login/Register State
+                const [authForm, setAuthForm] = React.useState({
+                    email: '', password: '', name: '', birthDate: '', selectedAvatar: 'warrior'
+                });
+
+                // Admin
+                const [newCycleDate, setNewCycleDate] = React.useState('');
+
+                // Cálculos
+                const { lastResetDate, nextResetDate, daysRemaining } = getDynamicCycleDates(cycleStartDate);
+                const isAdmin = user && user.email === ADMIN_EMAIL;
+                const isHeroesRoomFull = donations.length >= MAX_HEROES;
+                const hasDonated = user ? donations.some(d => d.userId === user.uid) : false;
+                const isGoalReached = totalCollected >= SERVER_GOAL;
+                const nextResetFormatted = nextResetDate.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
+
+                // Redirect Login
+                React.useEffect(() => {
+                    if (user && (view === 'login' || view === 'register')) {
+                        setView('home');
+                        setIsSubmitting(false);
+                    }
+                }, [user, view]);
+
+                React.useEffect(() => {
+                    const savedAccess = localStorage.getItem('cupula_access_granted');
+                    if (savedAccess === 'true') setAccessGranted(true);
+
+                    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+                        if (currentUser) {
+                            try {
+                                const userDoc = await getDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'data'));
+                                if (userDoc.exists()) setUser({ ...currentUser, ...userDoc.data() });
+                                else setUser(currentUser);
+                            } catch (e) { setUser(currentUser); }
+                        } else {
+                            setUser(null);
+                        }
+                        setLoading(false);
+                    });
+
+                    // Settings Listener
+                    const settingsRef = doc(db, 'artifacts', appId, 'public', 'settings');
+                    const unsubscribeSettings = onSnapshot(settingsRef, (docSnap) => {
+                        if (docSnap.exists() && docSnap.data().cycleStartDate) {
+                            const savedDate = new Date(docSnap.data().cycleStartDate.seconds * 1000);
+                            const userOffset = savedDate.getTimezoneOffset() * 60000;
+                            const adjustedDate = new Date(savedDate.getTime() + userOffset);
+                            setCycleStartDate(savedDate);
+                            setNewCycleDate(adjustedDate.toISOString().slice(0, 10));
+                        } else if (!docSnap.exists()) {
+                            setDoc(settingsRef, { cycleStartDate: new Date() }, { merge: true });
+                        }
+                    });
+
+                    return () => { unsubscribeAuth(); unsubscribeSettings(); };
+                }, []);
+
+                React.useEffect(() => {
+                    const { lastResetDate: corte } = getDynamicCycleDates(cycleStartDate);
+                    const q = query(
+                        collection(db, 'artifacts', appId, 'public', 'data', 'donations'), 
+                        where('timestamp', '>=', corte), 
+                        orderBy('timestamp', 'desc')
+                    );
+                    const unsubscribeDonations = onSnapshot(q, (snapshot) => {
+                        const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        setDonations(docs);
+                        setTotalCollected(docs.reduce((acc, curr) => acc + Number(curr.amount), 0));
+                    });
+                    return () => unsubscribeDonations();
+                }, [cycleStartDate]);
+
+                // Handlers
+                const handleAuth = async (e, type) => {
+                    e.preventDefault();
+                    if (isSubmitting) return;
+                    setIsSubmitting(true);
+                    setError('');
+                    try {
+                        if (type === 'register') {
+                            if (!authForm.birthDate) throw new Error('Data de nascimento é obrigatória.');
+                            const cred = await createUserWithEmailAndPassword(auth, authForm.email, authForm.password);
+                            await setDoc(doc(db, 'artifacts', appId, 'users', cred.user.uid, 'profile', 'data'), {
+                                name: authForm.name, birthDate: authForm.birthDate, avatarId: authForm.selectedAvatar, role: 'user', email: authForm.email
+                            });
+                            await updateProfile(cred.user, { displayName: authForm.name });
+                        } else {
+                            await signInWithEmailAndPassword(auth, authForm.email, authForm.password);
+                        }
+                    } catch (err) {
+                        setError(type === 'login' ? "Credenciais inválidas." : err.message);
+                        setIsSubmitting(false);
+                    }
+                };
+
+                const handleAccessCode = (e) => {
+                    e.preventDefault();
+                    if (VALID_ACCESS_CODES.includes(accessCodeInput.trim().toUpperCase())) {
+                        setAccessGranted(true);
+                        localStorage.setItem('cupula_access_granted', 'true');
+                    } else { setError('Código inválido.'); }
+                };
+
+                const handleOpenPixModal = () => {
+                    const remaining = SERVER_GOAL - totalCollected;
+                    const val = parseFloat(donationAmount);
+                    if (donations.length >= MAX_HEROES) { setError("Sala dos Heróis cheia!"); return; }
+                    if (val < 2) { setError('Mínimo R$ 2,00'); return; }
+                    if (totalCollected >= SERVER_GOAL) { setError('Meta atingida!'); return; }
+                    if (val > remaining && remaining > 0) { setError(`Máximo: R$ ${remaining.toFixed(2)}`); return; }
+                    setError('');
+                    setShowPixModal(true);
+                };
+
+                const handleConfirmDonation = async () => {
+                    if (!user || isSubmitting) return;
+                    setIsSubmitting(true);
+                    try {
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'donations'), {
+                            userId: user.uid, userName: user.name || user.displayName, userAvatar: user.avatarId || 'warrior',
+                            amount: parseFloat(donationAmount), isAnonymous: false, timestamp: serverTimestamp()
+                        });
+                        setShowPixModal(false);
+                        setView('success');
+                        setTimeout(() => { setView('home'); setIsSubmitting(false); }, 3000);
+                    } catch (err) { 
+                        setError("Erro: " + err.message); 
+                        setIsSubmitting(false); 
+                        setShowPixModal(false);
+                    }
+                };
+                
+                const handleUpdateCycle = async () => {
+                    if (!newCycleDate) return;
+                    const parts = newCycleDate.split('-');
+                    const dateObj = new Date(parts[0], parts[1]-1, parts[2]);
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'settings'), { cycleStartDate: dateObj }, { merge: true });
+                    alert('Ciclo atualizado!');
+                };
+
+                const handleAdminReset = async () => {
+                    if (!user) return;
+                    if (user.email.trim().toLowerCase() !== ADMIN_EMAIL.trim().toLowerCase()) {
+                        alert(`Acesso Negado.\n\nLogado como: ${user.email}\nAdmin esperado: ${ADMIN_EMAIL}`);
+                        return;
+                    }
+                    if (!confirm("⚠️ PERIGO: Isso vai apagar TODAS as doações registradas no sistema.\n\nTem certeza absoluta que deseja zerar o caixa completamente?")) return;
+                    setIsSubmitting(true);
+                    try {
+                        const q = collection(db, 'artifacts', appId, 'public', 'data', 'donations');
+                        const snapshot = await getDocs(q);
+                        if (snapshot.empty) {
+                            alert("O banco de dados já está vazio.");
+                        } else {
+                            const batches = [];
+                            let batch = writeBatch(db);
+                            let operationCounter = 0;
+                            snapshot.docs.forEach((doc, index) => {
+                                batch.delete(doc.ref);
+                                operationCounter++;
+                                if (operationCounter >= 499 || index === snapshot.docs.length - 1) {
+                                    batches.push(batch.commit());
+                                    batch = writeBatch(db);
+                                    operationCounter = 0;
+                                }
+                            });
+                            await Promise.all(batches);
+                            alert("Sucesso! O sistema foi completamente resetado.");
+                        }
+                    } catch (err) { alert("Erro ao resetar: " + err.message); } finally { setIsSubmitting(false); }
+                };
+
+                const handleDeleteDonation = async (id) => {
+                    if (confirm("Apagar esta doação?")) {
+                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'donations', id));
+                    }
+                };
+
+                const handleEditDonation = async (id, currentVal) => {
+                    const newVal = prompt("Novo valor:", currentVal);
+                    if (newVal && !isNaN(newVal)) {
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'donations', id), { amount: parseFloat(newVal) });
+                    }
+                };
+
+                if (!accessGranted) return (
+                    <div className="min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                        <div className="max-w-md w-full bg-slate-900/90 border border-purple-500/30 rounded-2xl p-8 backdrop-blur-lg relative z-10 animate-fade-in text-center">
+                            <div className="mb-6 flex justify-center"><div className="p-4 bg-purple-500/10 rounded-full border border-purple-500/30"><Icon name="lock" className="w-10 h-10 text-purple-400" /></div></div>
+                            <h1 className="text-2xl font-bold text-white mb-2 uppercase tracking-widest">Área Restrita</h1>
+                            <form onSubmit={handleAccessCode} className="space-y-4 mt-6">
+                                <input type="text" value={accessCodeInput} onChange={(e) => setAccessCodeInput(e.target.value)} placeholder="CÓDIGO DE ACESSO" className="w-full bg-slate-950 border border-slate-700 rounded-lg p-4 text-center text-white placeholder-slate-600 focus:border-purple-500 outline-none uppercase font-mono text-lg tracking-wider" />
+                                {error && <div className="text-red-400 text-sm">{error}</div>}
+                                <button type="submit" className="w-full bg-gradient-to-r from-purple-700 to-indigo-600 hover:from-purple-600 text-white font-bold py-4 rounded-lg shadow-lg flex items-center justify-center gap-2">ACESSAR <Icon name="arrow-right" className="w-4 h-4" /></button>
+                            </form>
+                        </div>
+                    </div>
+                );
+
+                if (loading) return <div className="h-screen flex items-center justify-center text-amber-500 bg-[#020617]"><Icon name="loader-2" className="w-10 h-10 animate-spin" /></div>;
+
+                return (
+                    <div className="flex flex-col flex-grow">
+                        {/* NOTA: O Navbar e Footer agora estão fora deste componente,
+                            sendo renderizados pelo sistema compartilhado.
+                        */}
+
+                        {view === 'success' ? (
+                            <div className="flex-grow flex flex-col items-center justify-center animate-fade-in p-4 text-center">
+                                <div className="w-32 h-32 bg-emerald-500/10 rounded-full flex items-center justify-center mb-6 animate-bounce border border-emerald-500/30">
+                                    <Icon name="check-circle-2" className="w-20 h-20 text-emerald-400" />
+                                </div>
+                                <h1 className="text-5xl font-bold text-emerald-400 mb-4 font-medieval tracking-wider drop-shadow-lg">HONRA E GLÓRIA!</h1>
+                                <p className="text-2xl text-emerald-100 max-w-lg">Sua oferta foi aceita pelo Conselho.</p>
+                            </div>
+                        ) : (view === 'login' || view === 'register') ? (
+                            <AuthScreen 
+                                view={view} 
+                                setView={setView} 
+                                handleLogin={(e) => handleAuth(e, 'login')} 
+                                handleRegister={(e) => handleAuth(e, 'register')} 
+                                isSubmitting={isSubmitting} 
+                                error={error}
+                                formState={authForm}
+                                setFormState={setAuthForm}
+                            />
+                        ) : (
+                            <DashboardScreen 
+                                user={user}
+                                donations={donations}
+                                totalCollected={totalCollected}
+                                serverGoal={SERVER_GOAL}
+                                maxHeroes={MAX_HEROES}
+                                daysRemaining={daysRemaining}
+                                nextResetFormatted={nextResetFormatted}
+                                handleOpenPixModal={handleOpenPixModal}
+                                donationAmount={donationAmount}
+                                setDonationAmount={setDonationAmount}
+                                error={error}
+                                isAdmin={isAdmin}
+                                handleEditDonation={handleEditDonation}
+                                handleDeleteDonation={handleDeleteDonation}
+                                setView={setView}
+                                isHeroesRoomFull={isHeroesRoomFull}
+                                hasDonated={hasDonated}
+                                isGoalReached={isGoalReached}
+                            />
+                        )}
+
+                        {showPixModal && (
+                            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+                                <div className="bg-slate-900 border border-amber-500/50 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+                                    <button onClick={() => setShowPixModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white"><Icon name="x" className="w-6 h-6" /></button>
+                                    <div className="text-center mb-6">
+                                        <div className="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-500/30"><Icon name="qr-code" className="w-8 h-8 text-amber-500" /></div>
+                                        <h2 className="text-2xl font-bold text-white mb-1">Pagamento via Pix</h2>
+                                        <p className="text-slate-400 text-sm">Valor: <span className="text-amber-400 font-bold text-lg">R$ {parseFloat(donationAmount).toFixed(2)}</span></p>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-lg mb-6 flex justify-center">
+                                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=00020126360014BR.GOV.BCB.PIX0114+551199999999952040000530398654041.005802BR5925Nome%20do%20Beneficiario6009Sao%20Paulo62070503***63041234" alt="QR Code" className="w-48 h-48 opacity-90" />
+                                    </div>
+                                    <div className="bg-slate-950 rounded p-4 mb-6 border border-slate-800 flex items-center gap-2">
+                                        <code className="flex-1 text-center text-sm font-mono text-purple-300 truncate">chave-pix-exemplo@banco.com</code>
+                                        <button className="text-slate-400 hover:text-white"><Icon name="copy" className="w-4 h-4" /></button>
+                                    </div>
+                                    <button onClick={handleConfirmDonation} disabled={isSubmitting} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg shadow-lg flex items-center justify-center gap-2">
+                                        {isSubmitting ? 'CONFIRMANDO...' : 'JÁ FIZ O PAGAMENTO'} <Icon name="check-circle" className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {isAdmin && view === 'home' && (
+                            <div className="fixed bottom-4 right-4 z-50 flex items-end gap-2 flex-col opacity-90 hover:opacity-100 transition">
+                                <div className="bg-slate-900 border border-slate-700 p-3 rounded-lg shadow-xl mb-2 flex flex-col gap-2">
+                                    <label className="text-[10px] text-slate-400 font-bold uppercase">📅 Próximo Pagamento</label>
+                                    <div className="flex gap-2">
+                                        <input type="date" value={newCycleDate} onChange={(e) => setNewCycleDate(e.target.value)} className="bg-slate-800 border border-slate-600 rounded p-1 text-center text-white text-xs" />
+                                        <button onClick={handleUpdateCycle} className="bg-indigo-600 text-white px-2 rounded text-xs hover:bg-indigo-500">OK</button>
+                                    </div>
+                                    <div className="h-px bg-slate-700 my-1"></div>
+                                    <button onClick={handleAdminReset} disabled={isSubmitting} className="bg-red-900/50 hover:bg-red-600 border border-red-500/30 text-red-200 hover:text-white px-3 py-2 rounded text-xs font-bold flex items-center justify-center gap-2 transition">
+                                        <Icon name="trash-2" className="w-3 h-3" /> ZERAR TUDO
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            const root = ReactDOM.createRoot(document.getElementById('root'));
+            root.render(<App />);
+        }
+    </script>
+</body>
+</html>
