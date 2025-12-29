@@ -49,6 +49,33 @@
   margin-left: 0;
 }
 
+.u-section-1 .u-form-group-5 {
+  margin-left: 0;
+}
+
+/* Estilos para corrigir visibilidade do select */
+.u-section-1 select.u-input,
+.u-section-1 select {
+  color: #333 !important;
+  background-color: #fff !important;
+}
+
+.u-section-1 select.u-input::placeholder,
+.u-section-1 select::placeholder {
+  color: #666 !important;
+}
+
+.u-section-1 select option {
+  color: #333 !important;
+  background-color: #fff !important;
+}
+
+.u-section-1 select option:checked,
+.u-section-1 select option[selected] {
+  background-color: #503aab !important;
+  color: #fff !important;
+}
+
 .u-section-1 .u-btn-1 {
   background-image: none;
   font-weight: 700;

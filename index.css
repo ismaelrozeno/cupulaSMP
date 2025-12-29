@@ -1,4 +1,4 @@
- .u-section-1 {
+.u-section-1 {
   background-position: 50% 50%, 50% 50%;
   background-repeat: no-repeat, no-repeat;
   background-image: url('images/CoolGamingDesktopWallpaper.png'), linear-gradient(to bottom, rgba(43, 41, 51, 1), rgba(43, 41, 51, 1));
@@ -1998,11 +1998,11 @@
 
 @media (max-width: 991px) {
   .u-section-16 .u-sheet-1 {
-    min-height: 402px;
+    min-height: 658px;
   }
 
   .u-section-16 .u-layout-wrap-1 {
-    width: 720px;
+    margin-bottom: 0;
   }
 
   .u-section-16 .u-layout-cell-1 {
@@ -2011,30 +2011,26 @@
 
   .u-section-16 .u-text-1 {
     font-size: 2.25rem;
-    margin-top: 29px;
-    margin-right: 0;
+    margin-top: 26px;
+  }
+
+  .u-section-16 .u-layout-cell-2 {
+    min-height: 342px;
   }
 
   .u-section-16 .u-image-1 {
-    min-height: 323px;
-  }
-
-  .u-section-16 .u-container-layout-2 {
-    padding-right: 30px;
+    width: 300px;
+    height: 300px;
   }
 }
 
 @media (max-width: 767px) {
   .u-section-16 .u-sheet-1 {
-    min-height: 737px;
+    min-height: 829px;
   }
 
-  .u-section-16 .u-layout-wrap-1 {
-    width: 540px;
-  }
-
-  .u-section-16 .u-image-1 {
-    min-height: 559px;
+  .u-section-16 .u-layout-cell-2 {
+    min-height: 361px;
   }
 
   .u-section-16 .u-container-layout-2 {
@@ -2045,21 +2041,22 @@
 
 @media (max-width: 575px) {
   .u-section-16 .u-sheet-1 {
-    min-height: 531px;
+    min-height: 830px;
   }
 
   .u-section-16 .u-layout-wrap-1 {
-    width: 340px;
+    margin-top: 14px;
+    margin-bottom: 46px;
   }
 
   .u-section-16 .u-text-1 {
     font-size: 1.875rem;
   }
 
-  .u-section-16 .u-image-1 {
-    min-height: 352px;
+  .u-section-16 .u-layout-cell-2 {
+    min-height: 227px;
   }
-}.u-section-17 .u-sheet-1 {
+} .u-section-17 .u-sheet-1 {
   min-height: 555px;
 }
 
@@ -2402,4 +2399,32 @@
   .u-section-19 .u-text-2 {
     width: 340px;
   }
+}
+
+/* centraliza botão abaixo da galeria (seção 2) */
+.u-section-2 .u-sheet {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+}
+.u-section-2 .u-sheet .u-align-center {
+  width: 100%;
+  display: flex !important;
+  justify-content: center !important;
+  margin-top: 1rem;
+}
+.u-section-2 .u-btn {
+  margin: 0 auto !important;
+}
+
+/* centraliza botão final (seção 20) */
+.u-section-20 .u-sheet {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.u-section-20 .u-btn {
+  margin: 0 !important;
 }
