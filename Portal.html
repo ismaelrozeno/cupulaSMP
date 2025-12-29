@@ -237,13 +237,15 @@
 
                         <div className="shrink-0 w-full md:w-auto">
                             <a 
-                                /* COLOQUE AQUI SEU LINK DIRETO (Ex: GitHub Releases ou Firebase Storage) */
-                                href="https://github.com/SEU_USUARIO/SEU_REPO/releases/download/v1.0/Modpack.zip"
+                                /* COLOQUE AQUI SEU LINK DO DROPBOX (Lembre de mudar o final para ?dl=1) */
+                                href="https://www.dropbox.com/scl/fi/yqf9cdf7hilr6p9rkbld2/mods.zip?rlkey=uixpaugr5qkb7hkqtralk135j&st=5m1hn2ki&dl=1"
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 download
                                 className="w-full md:w-auto px-8 py-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-3 transition transform hover:scale-105 border border-indigo-400/30 group/btn"
                             >
                                 <div className="flex flex-col items-start">
-                                    <span className="text-xs text-indigo-200 uppercase tracking-wider">Download Direto</span>
+                                    <span className="text-xs text-indigo-200 uppercase tracking-wider">Download Direto • v1.0</span>
                                     <span className="text-lg">BAIXAR MODPACK</span>
                                 </div>
                                 <Icon name="download" className="w-6 h-6 group-hover/btn:animate-bounce" />
@@ -1016,7 +1018,7 @@
 
                                     <div className="space-y-1 opacity-80">
                                         <p>Resolving host...</p>
-                                        <p>Connecting to port 25565...</p>
+                                        <p>Connecting to port 35601...</p>
                                         {isServerOnline ? (
                                             <p className="text-emerald-500">Connection established!</p>
                                         ) : (
