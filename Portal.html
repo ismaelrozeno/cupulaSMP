@@ -576,7 +576,7 @@
         };
 
         // 3. Dashboard Screen
-        const DashboardScreen = ({ user, donations, allUsers, playerCount, totalCollected, serverGoal, maxHeroes, daysRemaining, nextResetFormatted, handleOpenPixModal, donationAmount, setDonationAmount, error, isAdmin, handleEditDonation, handleDeleteDonation, handleDeleteUser, handleUpdateAvatar, setView, isHeroesRoomFull, hasDonated, isGoalReached, handleOpenHistory, adminEmail, isServerOnline, handleUpdateServerStatus, serverIp, handleUpdateServerIp }) => {
+        const DashboardScreen = ({ user, donations, allUsers, playerCount, totalCollected, serverGoal, maxHeroes, daysRemaining, nextResetFormatted, handleOpenPixModal, donationAmount, setDonationAmount, error, isAdmin, handleEditDonation, handleDeleteDonation, handleDeleteUser, handleUpdateAvatar, setView, isHeroesRoomFull, hasDonated, isGoalReached, handleOpenHistory, adminEmail, isServerOnline, handleUpdateServerStatus, serverIp, handleUpdateServerIp, handleAdminAddDonation }) => {
             const progressPercent = Math.min(100, (totalCollected / serverGoal) * 100);
             const remainingGoal = Math.max(0, serverGoal - totalCollected);
             const getAvatarInfo = (id) => AVATARS.find(a => a.id === id) || AVATARS[0];
@@ -585,6 +585,9 @@
             const [ipCopied, setIpCopied] = React.useState(false);
             const [isEditingIp, setIsEditingIp] = React.useState(false);
             const [newIp, setNewIp] = React.useState(serverIp);
+            const [showAdminDonationModal, setShowAdminDonationModal] = React.useState(false);
+            const [targetUserForDonation, setTargetUserForDonation] = React.useState('');
+            const [manualDonationValue, setManualDonationValue] = React.useState('');
 
             React.useEffect(() => {
                 setNewIp(serverIp);
@@ -623,6 +626,51 @@
                                                 <span className="text-[10px] text-slate-400">{av.label}</span>
                                             </div>
                                         ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {showAdminDonationModal && (
+                            <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+                                <div className="bg-slate-900/90 backdrop-blur-md border border-emerald-500/50 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+                                    <button onClick={() => setShowAdminDonationModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white"><Icon name="x" className="w-6 h-6" /></button>
+                                    <h3 className="text-xl font-bold text-white mb-4 text-center">Adicionar Doação Manual</h3>
+                                    
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="text-xs text-slate-400 ml-1">Usuário Selecionado</label>
+                                            <div className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white font-bold">
+                                                {allUsers.find(u => u.uid === targetUserForDonation)?.name || 'Desconhecido'} 
+                                                <span className="text-slate-500 text-xs ml-2 font-normal">({allUsers.find(u => u.uid === targetUserForDonation)?.minecraftNick})</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="text-xs text-slate-400 ml-1">Valor (R$)</label>
+                                            <input 
+                                                type="number" 
+                                                step="0.01"
+                                                value={manualDonationValue} 
+                                                onChange={(e) => setManualDonationValue(e.target.value)}
+                                                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 transition"
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+
+                                        <button 
+                                            onClick={() => {
+                                                if(targetUserForDonation && manualDonationValue) {
+                                                    handleAdminAddDonation(targetUserForDonation, manualDonationValue);
+                                                    setShowAdminDonationModal(false);
+                                                    setTargetUserForDonation('');
+                                                    setManualDonationValue('');
+                                                }
+                                            }}
+                                            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg shadow-lg flex items-center justify-center gap-2"
+                                        >
+                                            CONFIRMAR <Icon name="check" className="w-4 h-4" />
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -932,6 +980,9 @@
                                                             
                                                             {showControls && (
                                                                 <div className="flex gap-1 absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 p-1 rounded-lg border border-slate-700 shadow-xl z-20">
+                                                                    {isAdmin && !isDonor && (
+                                                                        <button onClick={() => { setTargetUserForDonation(u.uid); setShowAdminDonationModal(true); }} className="p-1.5 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded transition" title="ADICIONAR DOAÇÃO MANUAL"><Icon name="plus-circle" className="w-4 h-4" /></button>
+                                                                    )}
                                                                     {isDonor && (isAdmin || isMe) && (
                                                                         <>
                                                                             <button onClick={() => handleEditDonation(donation.id, donation.amount)} className="p-1.5 hover:bg-blue-600 text-blue-400 hover:text-white rounded transition" title="Editar Valor"><Icon name="pencil" className="w-4 h-4" /></button>
@@ -1532,6 +1583,41 @@
                     }
                 };
 
+                const handleAdminAddDonation = async (targetUid, amountVal) => {
+                    if (!isAdmin) return;
+                    const targetUser = allUsers.find(u => u.uid === targetUid);
+                    if (!targetUser) return alert("Usuário não encontrado");
+                    
+                    const existingDonation = donations.find(d => d.userId === targetUid);
+                    if (existingDonation) {
+                        return alert("Este usuário já possui uma doação. Edite o valor existente.");
+                    }
+
+                    const amount = parseFloat(amountVal);
+                    const remaining = Number((SERVER_GOAL - totalCollected).toFixed(2));
+
+                    if (amount > remaining) {
+                        return alert(`O valor informado ultrapassa o restante da meta (R$ ${remaining.toFixed(2)}).`);
+                    }
+
+                    setIsSubmitting(true);
+                    try {
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'donations'), {
+                            userId: targetUser.uid,
+                            userName: targetUser.name || targetUser.minecraftNick || 'Desconhecido',
+                            userAvatar: targetUser.avatarId || 'villager',
+                            amount: amount,
+                            isAnonymous: false,
+                            timestamp: serverTimestamp()
+                        });
+                        alert("Doação adicionada com sucesso!");
+                    } catch (err) {
+                        alert("Erro: " + err.message);
+                    } finally {
+                        setIsSubmitting(false);
+                    }
+                };
+
                 const handleOpenHistory = async (targetUser) => {
                     setHistoryModal({ open: true, user: targetUser, list: [], loading: true });
                     try {
@@ -1629,6 +1715,7 @@
                                 handleUpdateServerStatus={handleUpdateServerStatus}
                                 serverIp={serverIp}
                                 handleUpdateServerIp={handleUpdateServerIp}
+                                handleAdminAddDonation={handleAdminAddDonation}
                             />
                         )}
 
