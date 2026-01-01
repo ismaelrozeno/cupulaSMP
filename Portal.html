@@ -22,6 +22,7 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -77,7 +78,7 @@
         .animate-fade-out-up { animation: fade-out-up 1.5s ease-out forwards; }
     </style>
 </head>
-<body class="flex flex-col min-h-screen">
+<body class="flex flex-col min-h-screen overflow-x-hidden">
 
     <div id="shared-header"></div>
 
@@ -114,6 +115,22 @@
 
     <script src="sistema-cupula.js" type="text/babel"></script>
 
+    <script>
+        // Handler de erro global (Executa antes do Babel) para pegar erros de sintaxe ou carregamento
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error("ERRO CRÍTICO:", message, source, lineno);
+            var root = document.getElementById('root');
+            if (root) {
+                root.innerHTML = '<div style="color: #ff5555; background: #1a1a1a; padding: 20px; font-family: monospace; border: 2px solid red; margin: 20px; z-index: 9999; position: relative;">' +
+                    '<h2 style="margin-top: 0;">⚠️ Erro Crítico (Global)</h2>' +
+                    '<p><strong>Erro:</strong> ' + message + '</p>' +
+                    '<p><strong>Local:</strong> Linha ' + lineno + '</p>' +
+                    '<pre style="background: #000; padding: 10px; overflow: auto;">' + (error && error.stack ? error.stack : 'Sem stacktrace') + '</pre>' +
+                    '</div>';
+            }
+        };
+    </script>
+
     <script type="text/babel">
         const waitForFirebase = setInterval(() => {
             if (window.firebaseApp) {
@@ -121,6 +138,42 @@
                 iniciarApp();
             }
         }, 100);
+
+        // Componente ErrorBoundary para capturar erros de renderização do React
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null, errorInfo: null };
+            }
+
+            static getDerivedStateFromError(error) {
+                return { hasError: true };
+            }
+
+            componentDidCatch(error, errorInfo) {
+                console.error("React Error Boundary:", error, errorInfo);
+                this.setState({ error, errorInfo });
+            }
+
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
+                            <div className="bg-red-950/50 border border-red-500 p-6 rounded-xl max-w-2xl w-full text-red-200">
+                                <h2 className="text-2xl font-bold text-red-400 mb-4">Erro na Interface (React)</h2>
+                                <p className="mb-2 font-bold">{this.state.error && this.state.error.toString()}</p>
+                                <details className="bg-black/50 p-4 rounded text-xs font-mono overflow-auto max-h-64">
+                                    <summary className="cursor-pointer mb-2 opacity-70 hover:opacity-100">Ver Detalhes Técnicos</summary>
+                                    {this.state.errorInfo && this.state.errorInfo.componentStack}
+                                </details>
+                                <button onClick={() => window.location.reload()} className="mt-6 px-6 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition">Tentar Novamente</button>
+                            </div>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
 
         const AVATARS = [
             { id: 'villager', icon: 'user', label: 'Aldeão', color: 'text-emerald-600' },
@@ -207,7 +260,7 @@
             );
         };
 
-        const ModpackSection = () => {
+        const ModpackSection = ({ isQuarantined }) => {
             const [showTutorial, setShowTutorial] = React.useState(false);
             const [tutorialTab, setTutorialTab] = React.useState('original');
             const [showHelp, setShowHelp] = React.useState(false);
@@ -216,7 +269,7 @@
                 <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-500"></div>
                     
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
                         <div className="flex-1">
                             <h3 className="text-2xl font-bold text-white mb-2 flex items-center gap-2 font-medieval tracking-wide">
                                 <Icon name="package" className="w-6 h-6 text-indigo-400" /> Grimório de Mods
@@ -236,6 +289,15 @@
                         </div>
 
                         <div className="shrink-0 w-full md:w-auto">
+                            {isQuarantined ? (
+                                <button disabled className="w-full md:w-auto px-8 py-4 bg-slate-950/50 border border-red-500/30 text-red-400 font-bold rounded-xl shadow-lg flex items-center justify-center gap-3 cursor-not-allowed opacity-80">
+                                    <div className="flex flex-col items-start">
+                                        <span className="text-xs uppercase tracking-wider opacity-70">Acesso Bloqueado</span>
+                                        <span className="text-lg">EM QUARENTENA</span>
+                                    </div>
+                                    <Icon name="lock" className="w-6 h-6" />
+                                </button>
+                            ) : (
                             <a 
                                 /* COLOQUE AQUI SEU LINK DO DROPBOX (Lembre de mudar o final para ?dl=1) */
                                 href="https://www.dropbox.com/scl/fi/yqf9cdf7hilr6p9rkbld2/mods.zip?rlkey=uixpaugr5qkb7hkqtralk135j&st=5m1hn2ki&dl=1"
@@ -250,6 +312,7 @@
                                 </div>
                                 <Icon name="download" className="w-6 h-6 group-hover/btn:animate-bounce" />
                             </a>
+                            )}
                         </div>
                     </div>
 
@@ -418,7 +481,7 @@
             };
 
             return (
-                <div className="flex-grow flex items-center justify-center p-4 relative min-h-[600px]">
+                <div className="flex-grow flex items-center justify-center p-5 sm:p-6 relative min-h-[600px]">
                     <div className="absolute inset-0 bg-pattern z-0 pointer-events-none"></div>
                     
                     <div className="max-w-md w-full bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl relative z-10 animate-fade-in">
@@ -576,10 +639,16 @@
         };
 
         // 3. Dashboard Screen
-        const DashboardScreen = ({ user, donations, allUsers, playerCount, totalCollected, serverGoal, maxHeroes, daysRemaining, nextResetFormatted, handleOpenPixModal, donationAmount, setDonationAmount, error, isAdmin, handleEditDonation, handleDeleteDonation, handleDeleteUser, handleUpdateAvatar, setView, isHeroesRoomFull, hasDonated, isGoalReached, handleOpenHistory, adminEmail, isServerOnline, handleUpdateServerStatus, serverIp, handleUpdateServerIp, handleAdminAddDonation }) => {
+        const DashboardScreen = ({ user, donations, allUsers, playerCount, totalCollected, serverGoal, maxHeroes, daysRemaining, nextResetFormatted, handleOpenPixModal, donationAmount, setDonationAmount, error, isAdmin, handleEditDonation, handleDeleteDonation, handleDeleteUser, handleUpdateAvatar, setView, isHeroesRoomFull, hasDonated, isGoalReached, handleOpenHistory, adminEmail, isServerOnline, handleUpdateServerStatus, serverIp, handleUpdateServerIp, handleAdminAddDonation, handleUpdateTitles, handleQuarantineUser }) => {
             const progressPercent = Math.min(100, (totalCollected / serverGoal) * 100);
             const remainingGoal = Math.max(0, serverGoal - totalCollected);
             const getAvatarInfo = (id) => AVATARS.find(a => a.id === id) || AVATARS[0];
+            
+            const activeUsers = allUsers.filter(u => u.status !== 'quarantined');
+            const quarantinedUsers = allUsers.filter(u => u.status === 'quarantined');
+            const liveUser = user ? allUsers.find(u => u.uid === user.uid) : null;
+            const isQuarantined = (liveUser && liveUser.status === 'quarantined') || (user && user.status === 'quarantined');
+
             const [avatarEditTarget, setAvatarEditTarget] = React.useState(null);
             const [showLoyalty, setShowLoyalty] = React.useState(false);
             const [ipCopied, setIpCopied] = React.useState(false);
@@ -588,6 +657,99 @@
             const [showAdminDonationModal, setShowAdminDonationModal] = React.useState(false);
             const [targetUserForDonation, setTargetUserForDonation] = React.useState('');
             const [manualDonationValue, setManualDonationValue] = React.useState('');
+            const [showTitlesModal, setShowTitlesModal] = React.useState(false);
+            const [targetUserForTitles, setTargetUserForTitles] = React.useState(null);
+            const [selectedTitles, setSelectedTitles] = React.useState({ staff: false, loreMaker: false });
+
+            const [isExporting, setIsExporting] = React.useState(false);
+
+            const handleScreenshot = () => {
+                const element = document.getElementById('sala-de-herois');
+                if (!element) return;
+
+                setIsExporting(true);
+                html2canvas(element, {
+                    backgroundColor: '#1e293b',
+                    useCORS: true,
+                    scale: 3,
+                    onclone: (clonedDoc) => {
+                        const sala = clonedDoc.getElementById('sala-de-herois');
+                        const lista = clonedDoc.getElementById('lista-herois-content');
+                        if (sala) {
+                            sala.style.height = 'auto';
+                            sala.style.minHeight = 'auto';
+                        }
+                        if (lista) {
+                            lista.style.height = 'auto';
+                            lista.style.overflow = 'visible';
+                        }
+                    }
+                }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = 'sala-de-herois.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    setIsExporting(false);
+                }).catch(err => {
+                    console.error("Erro ao tirar print:", err);
+                    alert("Ocorreu um erro ao tentar tirar o print.");
+                    setIsExporting(false);
+                });
+            };
+
+            const handleExportCSV = () => {
+                setIsExporting(true);
+                
+                const headers = ['Nome', 'Nick Minecraft', 'Email', 'Status', 'Doador', 'Valor Doado (R$)', 'Títulos'];
+                
+                const escapeCSV = (str) => {
+                    if (str === null || str === undefined) return '';
+                    str = String(str);
+                    if (str.includes(';') || str.includes('"') || str.includes('\n')) {
+                        return `"${str.replace(/"/g, '""')}"`;
+                    }
+                    return str;
+                };
+
+                const userRows = activeUsers.map(user => {
+                    const donation = donations.find(d => d.userId === user.uid);
+                    const isDonor = !!donation;
+                    const donationAmount = isDonor ? donation.amount.toFixed(2).replace('.', ',') : '0,00';
+                    const userTitles = (user.titles || []).map(t => t === 'staff' ? 'Staff' : t === 'lore_maker' ? 'Lore Maker' : t).join(', ');
+
+                    return [escapeCSV(user.name), escapeCSV(user.minecraftNick), escapeCSV(user.email), escapeCSV(user.status || 'active'), isDonor ? 'Sim' : 'Não', donationAmount, escapeCSV(userTitles)].join(';');
+                });
+
+                const csvContent = ["\uFEFF" + headers.join(';'), ...userRows].join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", "sala_de_herois.csv");
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                setIsExporting(false);
+            };
+
+            const openTitlesModal = (user) => {
+                setTargetUserForTitles(user);
+                setSelectedTitles({
+                    staff: user.titles?.includes('staff') || false,
+                    loreMaker: user.titles?.includes('lore_maker') || false
+                });
+                setShowTitlesModal(true);
+            };
+
+            const saveTitles = () => {
+                if (targetUserForTitles) {
+                    handleUpdateTitles(targetUserForTitles.uid, selectedTitles);
+                    setShowTitlesModal(false);
+                    setTargetUserForTitles(null);
+                }
+            };
 
             React.useEffect(() => {
                 setNewIp(serverIp);
@@ -599,6 +761,7 @@
             };
 
             const handleCopyIp = async () => {
+                if (isQuarantined) return;
                 try {
                     await navigator.clipboard.writeText(serverIp);
                     setIpCopied(true);
@@ -607,7 +770,7 @@
             };
 
             return (
-                <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-8 animate-fade-in relative flex-grow w-full">
+                <main className="max-w-6xl mx-auto px-5 sm:px-6 py-6 sm:py-8 animate-fade-in relative flex-grow w-full">
                     <div className="absolute inset-0 bg-pattern z-0 pointer-events-none"></div>
                     
                     <div className="relative z-10">
@@ -676,6 +839,40 @@
                             </div>
                         )}
 
+                        {showTitlesModal && (
+                            <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+                                <div className="bg-slate-900/90 backdrop-blur-md border border-yellow-500/50 rounded-2xl max-w-sm w-full p-6 shadow-2xl relative">
+                                    <button onClick={() => setShowTitlesModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white"><Icon name="x" className="w-6 h-6" /></button>
+                                    <h3 className="text-xl font-bold text-white mb-4 text-center flex items-center justify-center gap-2">
+                                        <Icon name="crown" className="w-6 h-6 text-yellow-500" /> Títulos
+                                    </h3>
+                                    <p className="text-slate-400 text-sm text-center mb-6">Gerenciar títulos para <span className="text-white font-bold">{targetUserForTitles?.name}</span></p>
+                                    
+                                    <div className="space-y-3">
+                                        <label className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-red-500/20 rounded-lg text-red-500"><Icon name="shield-alert" className="w-5 h-5" /></div>
+                                                <span className="text-slate-200 font-bold">Staff</span>
+                                            </div>
+                                            <input type="checkbox" checked={selectedTitles.staff} onChange={(e) => setSelectedTitles({...selectedTitles, staff: e.target.checked})} className="w-5 h-5 rounded border-slate-600 text-purple-600 focus:ring-purple-500 bg-slate-800" />
+                                        </label>
+                                        
+                                        <label className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400"><Icon name="feather" className="w-5 h-5" /></div>
+                                                <span className="text-slate-200 font-bold">Lore Maker</span>
+                                            </div>
+                                            <input type="checkbox" checked={selectedTitles.loreMaker} onChange={(e) => setSelectedTitles({...selectedTitles, loreMaker: e.target.checked})} className="w-5 h-5 rounded border-slate-600 text-purple-600 focus:ring-purple-500 bg-slate-800" />
+                                        </label>
+                                    </div>
+
+                                    <button onClick={saveTitles} className="w-full mt-6 bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-3 rounded-lg shadow-lg flex items-center justify-center gap-2 transition">
+                                        SALVAR ALTERAÇÕES
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="relative mb-4 md:mb-8">
                             {!user && (
                                 <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px] rounded-xl border border-slate-800/50 transition-all hover:bg-slate-900/70">
@@ -702,7 +899,7 @@
                             </div>
                         </div>
 
-                        <div className="grid lg:grid-cols-12 gap-4 lg:gap-8">
+                        <div className="flex flex-col lg:grid lg:grid-cols-12 gap-4 lg:gap-8">
                             <div className="lg:col-span-7 space-y-6">
                                 <div className="relative">
                                     {!user && (
@@ -717,7 +914,7 @@
                                             </button>
                                         </div>
                                     )}
-                                    <div className={`relative overflow-hidden rounded-2xl border p-8 shadow-2xl transition backdrop-blur-md ${isGoalReached ? 'bg-emerald-950/30 border-emerald-500/50' : 'bg-slate-900/60 border-amber-500/30'} ${!user ? 'blur-md select-none pointer-events-none' : ''}`}>
+                                    <div className={`relative overflow-hidden rounded-2xl border p-6 sm:p-8 shadow-2xl transition backdrop-blur-md ${isGoalReached ? 'bg-emerald-950/30 border-emerald-500/50' : 'bg-slate-900/60 border-amber-500/30'} ${!user ? 'blur-md select-none pointer-events-none' : ''}`}>
                                     <div className="flex justify-between items-start mb-6">
                                         <div>
                                             <h3 className="text-sm uppercase tracking-widest text-slate-400 font-bold mb-1">Pagamento do Servidor para esse Mês</h3>
@@ -754,7 +951,14 @@
                                         
                                         <div className="space-y-4 relative z-10">
                                             {user ? (
-                                                <>
+                                                isQuarantined ? (
+                                                    <div className="p-6 bg-red-950/30 border border-red-500/30 rounded-xl text-center flex flex-col items-center justify-center gap-2">
+                                                        <div className="p-3 bg-red-500/10 rounded-full"><Icon name="ban" className="w-8 h-8 text-red-500" /></div>
+                                                        <h4 className="text-red-400 font-bold text-lg">Contribuição Bloqueada</h4>
+                                                        <p className="text-red-300/70 text-sm max-w-xs">Sua conta está em quarentena. Entre em contato com a staff para regularizar sua situação.</p>
+                                                    </div>
+                                                ) : (
+                                                <React.Fragment>
                                                     <div>
                                                         <label className="block text-sm text-slate-400 mb-2 font-medium">Quanto deseja contribuir?</label>
                                                         <div className="relative">
@@ -792,9 +996,10 @@
                                                     <button onClick={handleOpenPixModal} className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition transform active:scale-95 border-t border-white/10">
                                                         <Icon name="qr-code" className="w-5 h-5" /> GERAR PIX
                                                     </button>
-                                                </>
+                                                </React.Fragment>
+                                                )
                                             ) : (
-                                                <>
+                                                <React.Fragment>
                                                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/40 z-20 backdrop-blur-[2px] p-6 text-center">
                                                         <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4 border border-slate-700 shadow-lg">
                                                             <Icon name="lock" className="w-8 h-8 text-slate-500" />
@@ -824,7 +1029,7 @@
                                                             <Icon name="qr-code" className="w-5 h-5" /> GERAR PIX
                                                         </button>
                                                     </div>
-                                                </>
+                                                </React.Fragment>
                                             )}
                                         </div>
                                     </div>
@@ -852,7 +1057,7 @@
                             </div>
 
                             <div className="lg:col-span-5">
-                                <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800 rounded-2xl shadow-xl flex flex-col h-auto min-h-[550px] lg:h-[700px]">
+                                <div id="sala-de-herois" className="bg-slate-900/60 backdrop-blur-md border border-slate-800 rounded-2xl shadow-xl flex flex-col h-auto min-h-[550px] lg:h-[700px]">
                                     <div className="p-5 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center backdrop-blur-sm rounded-t-2xl">
                                         <h3 className="font-bold text-amber-500 flex items-center gap-2 tracking-wide font-medieval text-lg">
                                             <Icon name="shield" className="w-5 h-5" /> Sala dos Heróis
@@ -860,15 +1065,27 @@
                                         <div className="flex items-center gap-2">
                                             <div className="group relative flex items-center z-50">
                                                 <Icon name="help-circle" className="w-4 h-4 text-slate-500 cursor-help hover:text-slate-300" />
-                                                <div className="absolute right-0 bottom-6 w-48 bg-slate-900 border border-slate-700 p-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition pointer-events-none z-50 text-xs text-slate-300">
+                                            <div className="absolute right-0 bottom-6 w-56 bg-slate-900 border border-slate-700 p-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition pointer-events-none z-50 text-xs text-slate-300">
                                                     <p className="mb-2 font-bold text-slate-200">Identificação:</p>
                                                     <div className="flex items-center gap-2 mb-1">
                                                         <img src="images/mineorigi.webp" className="w-3 h-3" title="Minecraft Original" />
                                                         <span>Minecraft Original</span>
                                                     </div>
-                                                    <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 mb-1">
                                                         <img src="images/mineorigipremium.webp" className="w-3 h-3" title="Minecraft Original + Pagante" />
                                                         <span>Original + Pagante</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <div className="flex items-center justify-center bg-red-500/10 border border-red-500/30 rounded p-0.5">
+                                                        <Icon name="shield-alert" className="w-3 h-3 text-red-500" />
+                                                    </div>
+                                                    <span>Staff</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex items-center justify-center bg-purple-500/10 border border-purple-500/30 rounded p-0.5">
+                                                        <Icon name="feather" className="w-3 h-3 text-purple-400" />
+                                                    </div>
+                                                    <span>Lore Maker</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -878,7 +1095,7 @@
                                         </div>
                                     </div>
                                     
-                                    <div className={`p-4 space-y-3 flex-1 bg-slate-900/50 relative rounded-b-2xl ${!user ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
+                                    <div id="lista-herois-content" className={`p-4 space-y-3 flex-1 bg-slate-900/50 relative ${isAdmin ? '' : 'rounded-b-2xl'} ${!user ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
                                         {!user ? (
                                             <>
                                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/40 z-20 backdrop-blur-[2px] p-6 text-center">
@@ -905,13 +1122,27 @@
                                             </div>
                                             </>
                                         ) : (
+                                            isQuarantined ? (
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/95 z-20 backdrop-blur-sm p-6 text-center rounded-b-2xl">
+                                                    <div className="w-16 h-16 bg-red-900/20 rounded-full flex items-center justify-center mb-4 border border-red-500/30 shadow-lg">
+                                                        <Icon name="user-x" className="w-8 h-8 text-red-500" />
+                                                    </div>
+                                                    <h3 className="text-white font-bold mb-2 text-lg">Você foi removido da Sala</h3>
+                                                    <p className="text-slate-400 text-sm mb-6 max-w-[250px]">
+                                                        Sua conta está em quarentena. Para retornar à Sala dos Heróis, você precisa falar com um Admin ou Staff.
+                                                    </p>
+                                                    <a href="https://discord.gg/acupula" target="_blank" rel="noopener noreferrer" className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold border border-indigo-400/30 transition flex items-center gap-2 shadow-lg">
+                                                        <Icon name="message-circle" className="w-4 h-4" /> Falar com Staff
+                                                    </a>
+                                                </div>
+                                            ) : (
                                             allUsers.length === 0 ? (
                                                 <div className="h-full flex flex-col items-center justify-center text-slate-600 opacity-60">
                                                     <Icon name="ghost" className="w-12 h-12 mb-3" />
                                                     <p className="text-sm font-medieval tracking-widest">Nenhum herói se apresentou...</p>
                                                 </div>
                                             ) : (
-                                                [...allUsers].sort((a, b) => {
+                                                [...activeUsers].sort((a, b) => {
                                                     const isAdA = a.email === adminEmail;
                                                     const isAdB = b.email === adminEmail;
                                                     if (isAdA && !isAdB) return 1;
@@ -936,6 +1167,8 @@
                                                     const canEditAvatar = isAdmin || isMe;
                                                     const showControls = isAdmin || isMe;
                                                     const showValue = isDonor && (isAdmin || isMe);
+                                                    const hasStaffTitle = u.titles?.includes('staff');
+                                                    const hasLoreMakerTitle = u.titles?.includes('lore_maker');
                                                     
                                                     return (
                                                         <React.Fragment key={u.uid}>
@@ -960,7 +1193,7 @@
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center gap-1">
                                                                     {u.isOriginal && <img src={`images/${isDonor ? 'mineorigipremium.webp' : 'mineorigi.webp'}`} className="w-4 h-4 shrink-0" title={isDonor ? "Minecraft Original + Pagante" : "Minecraft Original"} />}
-                                                                    <div className="truncate flex-1">
+                                                                    <div className="truncate flex-1 py-0.5">
                                                                         <span className={`font-bold text-base align-middle ${isDonor ? 'text-rgb' : 'text-slate-200'}`}>
                                                                         {u.minecraftNick || u.name || 'Desconhecido'}
                                                                         </span>
@@ -970,7 +1203,25 @@
                                                                     </div>
                                                                 </div>
                                                                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
-                                                                    {isDonor && <span title={showValue ? "" : "Valor Oculto"} className="text-xs text-emerald-400/80 bg-emerald-950/30 px-1.5 py-0.5 rounded border border-emerald-900 inline-flex items-center whitespace-nowrap gap-1">{showValue ? `R$ ${donation.amount.toFixed(2)}` : <>R$<span className="blur-[2.5px] select-none opacity-80">99.99</span></>}</span>}
+                                                                    {isDonor && <span title={showValue ? "" : "Valor Oculto"} className="text-xs text-emerald-400/80 bg-emerald-950/30 px-1.5 py-0.5 rounded border border-emerald-900 inline-flex items-center whitespace-nowrap gap-1">{showValue ? `R$ ${donation.amount.toFixed(2)}` : <React.Fragment>R$<span className="blur-[2.5px] select-none opacity-80">99.99</span></React.Fragment>}</span>}
+                                                                    {hasStaffTitle && (
+                                                                        <button className="group relative flex items-center justify-center bg-red-500/10 border border-red-500/30 rounded p-0.5 cursor-help outline-none">
+                                                                            <Icon name="shield-alert" className="w-3 h-3 text-red-500" />
+                                                                            <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap z-50 px-2 py-1 bg-slate-950 border border-slate-800 text-slate-200 text-[10px] font-bold rounded shadow-xl opacity-0 group-focus:opacity-100 transition-opacity pointer-events-none">
+                                                                                Staff
+                                                                                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-950 border-b border-r border-slate-800 transform rotate-45"></span>
+                                                                            </span>
+                                                                        </button>
+                                                                    )}
+                                                                    {hasLoreMakerTitle && (
+                                                                        <button className="group relative flex items-center justify-center bg-purple-500/10 border border-purple-500/30 rounded p-0.5 cursor-help outline-none">
+                                                                            <Icon name="feather" className="w-3 h-3 text-purple-400" />
+                                                                            <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap z-50 px-2 py-1 bg-slate-950 border border-slate-800 text-slate-200 text-[10px] font-bold rounded shadow-xl opacity-0 group-focus:opacity-100 transition-opacity pointer-events-none">
+                                                                                Lore Maker
+                                                                                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-950 border-b border-r border-slate-800 transform rotate-45"></span>
+                                                                            </span>
+                                                                        </button>
+                                                                    )}
                                                                     {u.uid === user?.uid && <span className="text-[10px] text-purple-400 uppercase tracking-wider font-bold">Você</span>}
                                                                     {(isAdmin || isMe) && (
                                                                         <button onClick={() => handleOpenHistory(u)} className="bg-transparent border-none text-[10px] text-purple-400 uppercase tracking-wider font-bold hover:text-purple-300 transition ml-1 cursor-pointer" title="Ver Histórico">Histórico de Doações</button>
@@ -989,12 +1240,16 @@
                                                                             <button onClick={() => handleDeleteDonation(donation.id)} className="p-1.5 hover:bg-amber-600 text-amber-400 hover:text-white rounded transition" title="Remover Doação (Mantém Usuário)"><Icon name="coins" className="w-4 h-4" /></button>
                                                                         </>
                                                                     )}
+                                                                    {isAdmin && (
+                                                                        <button onClick={() => openTitlesModal(u)} className="p-1.5 hover:bg-yellow-600 text-yellow-400 hover:text-white rounded transition" title="GERENCIAR TÍTULOS"><Icon name="crown" className="w-4 h-4" /></button>
+                                                                    )}
                                                                     {(isAdmin || isMe) && (
                                                                         <button onClick={() => window.location.href = `meu-perfil.html${isMe ? '' : '?uid=' + u.uid}`} className="p-1.5 hover:bg-purple-600 text-purple-400 hover:text-white rounded transition" title="EDITAR PERFIL"><Icon name="user-cog" className="w-4 h-4" /></button>
                                                                     )}
-                                                                    {isAdmin && !isMe && (
+                                                                    {isAdmin && !isMe && (<React.Fragment>
+                                                                        <button onClick={() => handleQuarantineUser(u.uid, true)} className="p-1.5 hover:bg-orange-600 text-orange-400 hover:text-white rounded transition" title="COLOCAR EM QUARENTENA"><Icon name="archive" className="w-4 h-4" /></button>
                                                                         <button onClick={() => handleDeleteUser(u.uid)} className="p-1.5 hover:bg-red-600 text-red-400 hover:text-white rounded transition" title="EXCLUIR USUÁRIO PERMANENTEMENTE"><Icon name="user-x" className="w-4 h-4" /></button>
-                                                                    )}
+                                                                    </React.Fragment>)}
                                                                 </div>
                                                             )}
                                                         </div>
@@ -1002,11 +1257,72 @@
                                                     );
                                                 })
                                             )
+                                            )
                                         )}
+                                    </div>
+                                    
+                                    {isAdmin && (
+                                        <div data-html2canvas-ignore className="p-4 border-t border-slate-800 bg-slate-950/30 rounded-b-2xl flex flex-col sm:flex-row items-center justify-center gap-4">
+                                            <p className="text-xs font-bold text-slate-400 m-0 uppercase tracking-wider">Ferramentas:</p>
+                                            <div className="flex flex-wrap justify-center gap-3">
+                                                <button 
+                                                    onClick={handleScreenshot} 
+                                                    disabled={isExporting}
+                                                    className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-lg flex items-center gap-2 transition disabled:opacity-50"
+                                                >
+                                                    <Icon name="camera" className="w-3 h-3" />
+                                                    {isExporting ? '...' : 'Print'}
+                                                </button>
+                                                <button 
+                                                    onClick={handleExportCSV} 
+                                                    disabled={isExporting}
+                                                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-lg flex items-center gap-2 transition disabled:opacity-50"
+                                                >
+                                                    <Icon name="sheet" className="w-3 h-3" />
+                                                    {isExporting ? '...' : 'CSV'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                        </div>
+
+                        {isAdmin && quarantinedUsers.length > 0 && (
+                            <div className="mt-8">
+                                <div className="bg-slate-900/60 backdrop-blur-md border border-orange-500/30 rounded-2xl shadow-xl flex flex-col h-auto">
+                                    <div className="p-5 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center backdrop-blur-sm rounded-t-2xl">
+                                        <h3 className="font-bold text-orange-500 flex items-center gap-2 tracking-wide font-medieval text-lg">
+                                            <Icon name="archive" className="w-5 h-5" /> Heróis em Quarentena
+                                        </h3>
+                                        <span className="text-xs font-bold bg-slate-800 text-slate-400 px-2 py-1 rounded border border-slate-700">
+                                            {quarantinedUsers.length}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="p-4 space-y-3 flex-1 bg-slate-900/50 rounded-b-2xl">
+                                        {quarantinedUsers.map(u => (
+                                            <div key={u.uid} className="flex items-center gap-3 sm:gap-4 p-3 rounded-xl bg-slate-950/40 border border-slate-800 group relative transition duration-300 hover:border-orange-500/50">
+                                                <div className="w-12 h-12 rounded-lg bg-slate-900 flex items-center justify-center border-2 border-slate-800 relative">
+                                                    <img src={`https://minotar.net/helm/${u.minecraftNick || 'MHF_Steve'}/100.png`} alt="Skin" className="w-full h-full object-cover rounded-lg opacity-50" />
+                                                    <div className="absolute -bottom-1 -right-1 bg-slate-900 rounded-full p-1 border border-slate-700 z-20 shadow-sm" title={getAvatarInfo(u.avatarId).label}>
+                                                        <Icon name={getAvatarInfo(u.avatarId).icon} className={`w-3 h-3 ${getAvatarInfo(u.avatarId).color}`} />
+                                                    </div>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <span className="font-bold text-base text-slate-400">{u.minecraftNick || u.name}</span>
+                                                </div>
+                                                <div className="flex gap-1">
+                                                    <button onClick={() => handleQuarantineUser(u.uid, false)} className="p-1.5 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded transition" title="TIRAR DA QUARENTENA"><Icon name="archive-restore" className="w-4 h-4" /></button>
+                                                    <button onClick={() => handleDeleteUser(u.uid)} className="p-1.5 hover:bg-red-600 text-red-400 hover:text-white rounded transition" title="EXCLUIR USUÁRIO PERMANENTEMENTE"><Icon name="user-x" className="w-4 h-4" /></button>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
 
                         <div className="mt-8 relative">
                             {!user && (
@@ -1026,7 +1342,7 @@
                             )}
 
                             <div className={`flex flex-col gap-6 transition-all duration-500 ${!user ? 'blur-md select-none pointer-events-none' : ''}`}>
-                            <ModpackSection />
+                            <ModpackSection isQuarantined={isQuarantined} />
                             
                             <div className="grid md:grid-cols-2 gap-6">
                             {/* Discord Widget - SUBSTITUA O ID ABAIXO PELO ID DO SEU SERVIDOR */}
@@ -1064,7 +1380,7 @@
                                 <div className="p-4 sm:p-6 flex-grow space-y-4 text-slate-300 overflow-y-auto custom-scrollbar font-mono">
                                     <div>
                                         <p className="text-slate-500 mb-1"># Iniciando conexão segura...</p>
-                                        <p><span className={isServerOnline ? "text-emerald-500" : "text-red-500"}>➜</span> <span className="text-blue-400">~</span> connect --secure <span className={isServerOnline ? "text-amber-400" : "text-red-400"}>{serverIp}</span></p>
+                                        <p><span className={isServerOnline ? "text-emerald-500" : "text-red-500"}>➜</span> <span className="text-blue-400">~</span> connect --secure <span className={isServerOnline ? "text-amber-400" : "text-red-400"}>{isQuarantined ? '████████' : serverIp}</span></p>
                                     </div>
 
                                     <div className="space-y-1 opacity-80">
@@ -1113,7 +1429,14 @@
                                     <div>
                                         <p className="mb-2"><span className={isServerOnline ? "text-emerald-500" : "text-red-500"}>➜</span> <span className="text-blue-400">~</span> {isEditingIp ? 'Salvar endereço:' : 'Copiar endereço:'}</p>
                                         
-                                        {isEditingIp && isAdmin ? (
+                                        {isQuarantined ? (
+                                            <div className="w-full bg-slate-900/50 border border-red-900/30 text-left p-4 rounded flex items-center justify-between cursor-not-allowed opacity-60">
+                                                <span className="font-bold tracking-wider text-slate-600 blur-[4px] select-none">192.168.0.1:25565</span>
+                                                <div className="flex items-center gap-2 text-red-500 text-xs font-bold uppercase">
+                                                    <Icon name="lock" className="w-4 h-4" /> Bloqueado
+                                                </div>
+                                            </div>
+                                        ) : isEditingIp && isAdmin ? (
                                             <div className="flex items-center gap-2">
                                                 <input 
                                                     type="text"
@@ -1159,6 +1482,7 @@
 
         // 4. Main App Container
         function iniciarApp() {
+            console.log(">>> Iniciando App (iniciarApp chamado)...");
             const app = window.firebaseApp;
             const auth = window.firebaseAuth.getAuth(app);
             const db = window.firebaseFirestore.getFirestore(app);
@@ -1242,7 +1566,7 @@
 
                 const { lastResetDate, nextResetDate, daysRemaining } = getDynamicCycleDates(cycleStartDate);
                 const isAdmin = user && user.email === ADMIN_EMAIL;
-                const playerCount = allUsers.filter(u => u.email !== ADMIN_EMAIL).length;
+                const playerCount = allUsers.filter(u => u.email !== ADMIN_EMAIL && u.status !== 'quarantined').length;
                 const isHeroesRoomFull = playerCount >= MAX_HEROES;
                 const hasDonated = user ? donations.some(d => d.userId === user.uid) : false;
                 const isGoalReached = totalCollected >= SERVER_GOAL;
@@ -1358,10 +1682,6 @@
                                 throw new Error('Você precisa aceitar os Termos de Serviço para se registrar.');
                             }
                             
-                            if (playerCount >= MAX_HEROES) {
-                                throw new Error('Não é possível criar a conta por ter o máximo de jogadores atingido. Entre em contato com um admin.');
-                            }
-
                             if (authForm.password !== authForm.confirmPassword) {
                                 throw new Error('As senhas não coincidem.');
                             }
@@ -1387,6 +1707,9 @@
                                 }
                             }
 
+                            const currentActivePlayers = allUsers.filter(u => u.email !== ADMIN_EMAIL && u.status !== 'quarantined').length;
+                            const initialStatus = currentActivePlayers >= MAX_HEROES ? 'quarantined' : 'active';
+
                             const cred = await createUserWithEmailAndPassword(auth, authForm.email, authForm.password);
                             
                             await setDoc(doc(db, 'artifacts', appId, 'users', cred.user.uid, 'profile', 'data'), {
@@ -1398,6 +1721,7 @@
                                 email: authForm.email,
                                 isOriginal: !isPirate,
                                 whitelistStatus: 'pending',
+                                status: initialStatus,
                                 createdAt: serverTimestamp()
                             });
                             
@@ -1563,7 +1887,7 @@
                 };
 
                 const handleDeleteUser = async (userId) => {
-                    if (confirm("⚠️ TEM CERTEZA?\n\nIsso vai excluir PERMANENTEMENTE a conta deste usuário da Sala de Heróis.\nEssa ação não pode ser desfeita.")) {
+                    if (confirm("⚠️ Atenção: Exclusão Permanente\n\nEsta ação removerá definitivamente o usuário e todo seu histórico. É irreversível.\n\n💡 Sugestão: A opção 'Quarentena' permite ocultar o usuário mantendo seus dados salvos.\n\nDeseja realmente excluir permanentemente?")) {
                         try {
                             await deleteDoc(doc(db, 'artifacts', appId, 'users', userId, 'profile', 'data'));
                         } catch (err) { alert("Erro ao excluir usuário: " + err.message); }
@@ -1615,6 +1939,40 @@
                         alert("Erro: " + err.message);
                     } finally {
                         setIsSubmitting(false);
+                    }
+                };
+
+                const handleUpdateTitles = async (userId, titlesObj) => {
+                    const titles = [];
+                    if (titlesObj.staff) titles.push('staff');
+                    if (titlesObj.loreMaker) titles.push('lore_maker');
+                    
+                    try {
+                        await updateDoc(doc(db, 'artifacts', appId, 'users', userId, 'profile', 'data'), { titles: titles });
+                    } catch (err) {
+                        alert("Erro ao atualizar títulos: " + err.message);
+                    }
+                };
+
+                const handleQuarantineUser = async (userId, quarantine) => {
+                    if (!quarantine) {
+                        const currentActivePlayers = allUsers.filter(u => u.email !== ADMIN_EMAIL && u.status !== 'quarantined').length;
+                        if (currentActivePlayers >= MAX_HEROES) {
+                            alert(`Não é possível restaurar este usuário.\n\nO limite de ${MAX_HEROES} jogadores ativos já foi atingido.\n\nPara liberar espaço, coloque outro jogador em quarentena ou remova-o.`);
+                            return;
+                        }
+                    }
+
+                    const status = quarantine ? 'quarantined' : 'active';
+                    const message = quarantine ? 'colocar em quarentena' : 'restaurar';
+                    if (confirm(`Tem certeza que deseja ${message} este usuário?`)) {
+                        try {
+                            await updateDoc(doc(db, 'artifacts', appId, 'users', userId, 'profile', 'data'), {
+                                status: status
+                            });
+                        } catch (err) {
+                            alert("Erro ao atualizar status do usuário: " + err.message);
+                        }
                     }
                 };
 
@@ -1716,6 +2074,8 @@
                                 serverIp={serverIp}
                                 handleUpdateServerIp={handleUpdateServerIp}
                                 handleAdminAddDonation={handleAdminAddDonation}
+                                handleUpdateTitles={handleUpdateTitles}
+                                handleQuarantineUser={handleQuarantineUser}
                             />
                         )}
 
@@ -1828,7 +2188,11 @@
             }
 
             const root = ReactDOM.createRoot(document.getElementById('root'));
-            root.render(<App />);
+            root.render(
+                <ErrorBoundary>
+                    <App />
+                </ErrorBoundary>
+            );
         }
     </script>
 </body>

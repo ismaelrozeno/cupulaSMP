@@ -253,39 +253,64 @@ const fetchAndDisplayServerIp = () => {
 
     // Espera o Firebase estar pronto
     const waitForFirebase = setInterval(() => {
-        if (window.firebaseFirestore && window.firebaseApp) {
+        if (window.firebaseFirestore && window.firebaseApp && window.firebaseAuth) {
             clearInterval(waitForFirebase);
             
             const { getFirestore, doc, getDoc } = window.firebaseFirestore;
+            const { getAuth, onAuthStateChanged } = window.firebaseAuth;
             const db = getFirestore(window.firebaseApp);
-            const settingsRef = doc(db, 'artifacts', 'cupula-server-v1', 'public', 'settings');
+            const auth = getAuth(window.firebaseApp);
             
-            getDoc(settingsRef).then(docSnap => {
-                const data = docSnap.exists() ? docSnap.data() : {};
-                const isOnline = typeof data.isServerOnline === 'boolean' ? data.isServerOnline : true;
-                const serverIp = data.serverIp || 'jogar.acupula.com.br';
-
-                if (isOnline) {
-                    ipElement.innerText = serverIp;
-                    ipElement.style.color = '#fbbf24'; // Cor original (âmbar)
-                    ipElement.style.cursor = 'pointer';
-                    ipElement.title = 'Clique para copiar';
-                    ipElement.onclick = () => {
-                        navigator.clipboard.writeText(ipElement.innerText);
-                        alert('IP Copiado!');
-                    };
-                } else {
-                    ipElement.innerText = 'Servidor em manutenção.';
-                    ipElement.style.color = '#f87171'; // Cor vermelha para offline
-                    ipElement.style.cursor = 'not-allowed';
-                    ipElement.title = 'O servidor está offline';
-                    ipElement.onclick = null; // Desativa o clique
+            // Verifica autenticação e status de quarentena
+            const unsubscribe = onAuthStateChanged(auth, async (user) => {
+                unsubscribe(); // Executa apenas uma vez
+                
+                let isQuarantined = false;
+                if (user) {
+                    try {
+                        const userDocRef = doc(db, 'artifacts', 'cupula-server-v1', 'users', user.uid, 'profile', 'data');
+                        const userSnap = await getDoc(userDocRef);
+                        if (userSnap.exists() && userSnap.data().status === 'quarantined') {
+                            isQuarantined = true;
+                        }
+                    } catch (e) { console.error("Erro ao verificar quarentena:", e); }
                 }
-            }).catch(error => {
-                console.error("Erro ao buscar informações do servidor: ", error);
-                ipElement.innerText = 'Erro ao carregar status';
-                ipElement.style.color = '#f87171';
-                ipElement.style.cursor = 'not-allowed';
+
+                const settingsRef = doc(db, 'artifacts', 'cupula-server-v1', 'public', 'settings');
+                
+                getDoc(settingsRef).then(docSnap => {
+                    const data = docSnap.exists() ? docSnap.data() : {};
+                    const isOnline = typeof data.isServerOnline === 'boolean' ? data.isServerOnline : true;
+                    const serverIp = data.serverIp || 'jogar.acupula.com.br';
+
+                    if (isQuarantined) {
+                        ipElement.innerText = 'Bloqueado (Quarentena)';
+                        ipElement.style.color = '#f87171';
+                        ipElement.style.cursor = 'not-allowed';
+                        ipElement.title = 'Acesso restrito';
+                        ipElement.onclick = (e) => { e.preventDefault(); alert('Você está em quarentena.'); };
+                    } else if (isOnline) {
+                        ipElement.innerText = serverIp;
+                        ipElement.style.color = '#fbbf24'; // Cor original (âmbar)
+                        ipElement.style.cursor = 'pointer';
+                        ipElement.title = 'Clique para copiar';
+                        ipElement.onclick = () => {
+                            navigator.clipboard.writeText(ipElement.innerText);
+                            alert('IP Copiado!');
+                        };
+                    } else {
+                        ipElement.innerText = 'Servidor em manutenção.';
+                        ipElement.style.color = '#f87171'; // Cor vermelha para offline
+                        ipElement.style.cursor = 'not-allowed';
+                        ipElement.title = 'O servidor está offline';
+                        ipElement.onclick = null; // Desativa o clique
+                    }
+                }).catch(error => {
+                    console.error("Erro ao buscar informações do servidor: ", error);
+                    ipElement.innerText = 'Erro ao carregar status';
+                    ipElement.style.color = '#f87171';
+                    ipElement.style.cursor = 'not-allowed';
+                });
             });
         }
     }, 100);
