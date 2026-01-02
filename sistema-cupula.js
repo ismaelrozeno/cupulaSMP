@@ -54,6 +54,9 @@ const AVATARS = [
             { id: 'warrior', icon: 'sword', label: 'Guerreiro', color: 'text-red-500' },
 ];
 
+// Expor globalmente para uso em outras páginas (como index.html)
+window.CUPULA_AVATARS = AVATARS;
+
 const Icon = ({ name, className }) => {
     const elementRef = React.useRef(null);
     React.useEffect(() => {

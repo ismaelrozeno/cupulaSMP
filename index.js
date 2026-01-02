@@ -5,9 +5,10 @@ const { Rcon } = require('rcon-client');
 admin.initializeApp();
 
 // --- CONFIGURAÇÕES DO SERVIDOR MINECRAFT ---
-const RCON_HOST = 'SEU_IP_DO_SERVIDOR'; // Ex: 192.168.1.50 ou jogar.acupula.com.br
-const RCON_PORT = 25575;                // Porta definida no server.properties
-const RCON_PASSWORD = 'SUA_SENHA_RCON'; // Senha definida no server.properties
+// Use: firebase functions:config:set minecraft.host="IP" minecraft.password="SENHA"
+const RCON_HOST = functions.config().minecraft?.host || 'SEU_IP_DO_SERVIDOR'; 
+const RCON_PORT = parseInt(functions.config().minecraft?.port) || 25575;
+const RCON_PASSWORD = functions.config().minecraft?.password || 'SUA_SENHA_RCON';
 
 exports.autoWhitelist = functions.firestore
     .document('artifacts/{appId}/users/{userId}/profile/data')
