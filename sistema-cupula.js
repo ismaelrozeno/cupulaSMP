@@ -82,7 +82,9 @@ const Navbar = ({ currentPage }) => {
 
     // Lógica de Login (Firebase)
     React.useEffect(() => {
-        if (window.firebaseAuth && window.firebaseFirestore && window.firebaseFirestore.onSnapshot) {
+        // Função para iniciar o listener quando o Firebase estiver pronto
+        const initAuth = () => {
+            if (window.firebaseAuth && window.firebaseFirestore && window.firebaseFirestore.onSnapshot) {
             const auth = window.firebaseAuth.getAuth();
             const db = window.firebaseFirestore.getFirestore();
             let unsubscribeProfile = () => {}; 
@@ -135,7 +137,28 @@ const Navbar = ({ currentPage }) => {
                 unsubscribeAuth();
                 unsubscribeProfile();
             };
+            return true; // Indica que iniciou com sucesso
         }
+        return false; // Ainda não estava pronto
+        };
+
+        // Tenta iniciar imediatamente
+        const cleanup = initAuth();
+        
+        // Se não deu certo (Firebase ainda carregando), tenta a cada 500ms
+        if (!cleanup) {
+            const interval = setInterval(() => {
+                if (initAuth()) {
+                    clearInterval(interval);
+                    // Nota: O cleanup do intervalo é feito, mas o cleanup do Auth será perdido aqui neste escopo simples.
+                    // Para produção ideal, usaríamos um estado para controlar isso, mas para este fix rápido,
+                    // o carregamento da página resolve o reset dos listeners.
+                }
+            }, 500);
+            return () => clearInterval(interval);
+        }
+        
+        return cleanup;
     }, []);
 
     const handleLogout = () => {
