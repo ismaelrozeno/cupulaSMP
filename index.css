@@ -510,7 +510,8 @@
   }
 
   .u-section-4 .u-text-2 {
-    margin-left: 0;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .u-section-4 .u-layout-wrap-1 {
