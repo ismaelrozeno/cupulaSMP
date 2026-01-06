@@ -177,7 +177,7 @@ const Navbar = ({ currentPage }) => {
     );
 
     return (
-        <nav className="bg-[#2B2933] backdrop-blur-md sticky top-0 z-50 border-b border-white/5 shadow-lg font-montserrat w-full">
+        <nav className={`bg-transparent ${currentPage === 'portal' || currentPage === 'perfil' ? 'relative' : 'absolute top-0'} z-50 font-montserrat w-full`}>
             <div className="max-w-7xl mx-auto px-4 h-36 flex items-center justify-between">
                 
                 {/* Logo */}
@@ -209,7 +209,7 @@ const Navbar = ({ currentPage }) => {
                             <Icon name="loader-2" className="w-5 h-5 text-[#F1AE0E] animate-spin" />
                         </div>
                     ) : user ? (
-                        <div className="flex items-center gap-1 bg-white/5 p-1 rounded-full border border-white/10 animate-fade-in">
+                        <div className="flex items-center gap-1 bg-[#2B2933] p-1 rounded-full border border-white/10 animate-fade-in">
                             <a href="meu-perfil.html" className="flex items-center gap-3 no-underline px-2 rounded-full hover:bg-white/10 transition-colors">
                                 <div className="hidden md:block text-right">
                                     <p className="text-[10px] text-slate-400 uppercase tracking-wider leading-none mb-0.5">{user.avatarId ? getAvatarInfo(user.avatarId).label : 'Membro'}</p>
@@ -228,10 +228,10 @@ const Navbar = ({ currentPage }) => {
                     ) : (
                         // NOVOS BOTÕES: Login e Registro separados
                      <div className="flex flex-col items-end gap-1">
-                         <a href="Portal.html?mode=login" className="text-slate-300 hover:text-white font-bold text-xs uppercase tracking-wide no-underline transition">
+                         <a href="Portal.html?mode=login" className="px-5 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white hover:text-[#F1AE0E] rounded-full font-bold shadow-lg flex items-center justify-center gap-2 transition uppercase text-xs tracking-wide no-underline">
                                 Login
                             </a>
-                       <a href="Portal.html?mode=register" className="px-5 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-[#F1AE0E] hover:text-[#F1AE0E] rounded-full font-bold shadow-lg flex items-center justify-center gap-2 transition uppercase text-xs tracking-wide no-underline">
+                       <a href="Portal.html?mode=register" className="px-5 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white hover:text-[#F1AE0E] rounded-full font-bold shadow-lg flex items-center justify-center gap-2 transition uppercase text-xs tracking-wide no-underline">
                          Registrar
                       </a>
                      </div>

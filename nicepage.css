@@ -47029,3 +47029,10 @@ a.u-link.u-text-hover-color-var:hover {
  /*begin-variables base-font-size*/ 
  html { font-size: 16px; }
  /*end-variables base-font-size*/
+
+/* Cabeçalho Transparente Global (Site Todo) */
+.u-header, .u-header.u-sticky, .u-header.u-sticky.u-sticky-scroll, .u-overlap .u-header {
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+}
